@@ -1,7 +1,7 @@
 {
-  "name": "倒数日 · 倒计时与纪念日",
-  "short_name": "倒数日",
-  "description": "仿《倒数日 Days Matter》的网页版：事件倒计时、纪念日、农历、背景卡片、提醒与备份",
+  "name": "时光屿月",
+  "short_name": "时光屿月",
+  "description": "时光屿月：倒计时与生理周期记录：事件倒计时、纪念日、农历、背景卡片、提醒与备份",
   "lang": "zh-CN",
   "start_url": "./index.html",
   "scope": "./",
