@@ -171,7 +171,12 @@
         if (d) photos['p_' + e.id] = d;
       }
     }
-    return JSON.stringify({ app: 'daoshuri', ver: 1, exportedAt: new Date().toISOString(), cats: s.cats, events: s.events, photos });
+    // 连带备份“月历/生理周期”数据
+    return JSON.stringify({
+      app: 'daoshuri', ver: 2, exportedAt: new Date().toISOString(),
+      cats: s.cats, events: s.events, photos,
+      cycle: getCycle(), marks: getMarks(), cycles: getCycles()
+    });
   }
 
   async function importData(jsonText) {
@@ -186,6 +191,14 @@
       const evId = k.replace(/^p_/, '');
       await putPhoto(evId, ph[k]);
     }
+    // 恢复月历/生理周期数据（旧备份无这些字段则跳过）
+    if (data.marks && typeof data.marks === 'object') {
+      try { localStorage.setItem(MARKS_KEY, JSON.stringify(data.marks)); } catch (e) { /* 忽略 */ }
+    }
+    if (data.cycles && typeof data.cycles === 'object') {
+      try { localStorage.setItem(CYCLES_KEY, JSON.stringify(data.cycles)); } catch (e) { /* 忽略 */ }
+    }
+    if (data.cycle && typeof data.cycle === 'object') setCycle(data.cycle);
     return s.events.length;
   }
 
