@@ -28,10 +28,14 @@ jobs:
       - name: 安装安卓 SDK
         uses: android-actions/setup-android@v3
 
-      - name: 添加并同步 Capacitor 安卓工程
+      - name: 添加并同步 Capacitor 安卓工程（先清空，避免旧工程残留旧应用名）
         run: |
+          rm -rf android
           npx cap add android || true
           npx cap sync android
+          # 强制写入应用名「时光屿月」（兜底，防止模板/残留不一致）
+          sed -i 's|<string name="app_name">.*</string>|<string name="app_name">时光屿月</string>|' android/app/src/main/res/values/strings.xml || true
+          grep -n 'app_name' android/app/src/main/res/values/strings.xml
 
       - name: 应用安卓应用图标（仓库内预生成的 android-res 覆盖模板图标）
         run: cp -r android-res/. android/app/src/main/res/
