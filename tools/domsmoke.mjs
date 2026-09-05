@@ -44,7 +44,14 @@ const ctx = vm.createContext({
     querySelectorAll: () => [],
     addEventListener() {},
     removeEventListener() {},
-    body: { classList: { add() {}, remove() {}, toggle() {}, contains: () => false } },
+    body: {
+      _c: null,
+      classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+      appendChild(c) { this._c = c; },
+      removeChild() {},
+      remove() {},
+      querySelector() {}
+    },
     documentElement: { setAttribute() {}, style: {} },
     visibilityState: 'visible'
   },
@@ -88,20 +95,21 @@ try {
   ok('openCatManage 无异常');
 
   DM.ui.openEditor(null);
-  const sheet = ctx.document.getElementById('sheet');
-  if (!sheet || typeof sheet.innerHTML !== 'string') throw new Error('sheet 未生成');
-  ok('编辑器 HTML 已写入 sheet');
+  const pgNode = ctx.document.body._c;
+  if (!pgNode || typeof pgNode.innerHTML !== 'string' || !pgNode.innerHTML) throw new Error('页面节点未生成');
+  ok('编辑器整页已写入 body');
 
   // 校验编辑器中引用的所有 id 都真实出现在 HTML 里（防拼写不一致）
   const NEEDED = ['edTitle', 'edCalSeg', 'edTargetText', 'rowLeap', 'edLeap', 'edWheel', 'edWheelY', 'edWheelM', 'edWheelD', 'edPreview', 'edCatRow', 'edCatPick', 'edCatIc', 'edCatNm', 'edCatList', 'edCatMgmt', 'edBgSpec', 'edImgHint', 'edBgPanel', 'edBgHue', 'edPinRow', 'edPin', 'edRepeatRow', 'edRepeat', 'edRemindAdv', 'edRemindHour', 'edRemindMin', 'edSaveTop', 'edSave'];
-  const missing = NEEDED.filter((i) => !sheet.innerHTML.includes('id="' + i + '"'));
+  const missing = NEEDED.filter((i) => !pgNode.innerHTML.includes('id="' + i + '"'));
   if (missing.length) throw new Error('编辑器缺少 id：' + missing.join(','));
   ok('编辑器 id 一致性：' + NEEDED.length + ' 个 id 全部存在');
 
   // 编辑已有事件（含删除按钮）
   const ev0 = DM.store.load().events[0];
   DM.ui.openEditor(ev0.id);
-  if (!sheet.innerHTML.includes('id="edDel"')) throw new Error('编辑态缺少删除按钮');
+  const pgNode2 = ctx.document.body._c;
+  if (!pgNode2.innerHTML.includes('id="edDel"')) throw new Error('编辑态缺少删除按钮');
   ok('openEditor(编辑已有事件) 无异常，含删除按钮');
 
   // 切换农历再切回公历
