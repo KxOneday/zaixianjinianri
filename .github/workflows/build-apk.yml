@@ -33,6 +33,11 @@ jobs:
           npx cap add android || true
           npx cap sync android
 
+      - name: 生成安卓应用/启动图标（assets 目录 → 安卓资源）
+        run: |
+          npx capacitor-assets generate --android --iconBackgroundColor '#ff5e62' --splashBackgroundColor '#ff5e62' || echo "capacitor-assets 未执行（使用模板图标）"
+          ls android/app/src/main/res/mipmap-xxxhdpi/ || true
+
       - name: 编译 Debug APK
         run: cd android && ./gradlew assembleDebug
 
