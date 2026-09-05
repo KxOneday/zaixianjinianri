@@ -88,58 +88,111 @@
     return t;
   }
 
-  function openSheet(html) {
+  let pgEl = null;
+  function modalOpen() {
     const ov = $('overlay');
-    $('sheet').innerHTML = html;
-    ov.classList.add('open');
-    ov.hidden = false;
-    document.body.classList.add('lock');
-    return $('sheet');
+    return !!(ov && !ov.hidden && ov.classList.contains('open'));
+  }
+  function syncLock() { document.body.classList.toggle('lock', !!pgEl || modalOpen()); }
+
+  function openSheet(html) {
+    // 独立页面：整页推进，带左右转场
+    if (pgEl) pgEl.remove();
+    // 底层面板先淡去，避免新页滑入时底下内容“透白”闪烁
+    document.body.classList.add('pg-on');
+    pgEl = document.createElement('div');
+    pgEl.className = 'pg sheet';
+    pgEl.style.background = 'var(--bg)';
+    pgEl.style.animation = 'pgIn .3s cubic-bezier(.22, .9, .3, 1)';
+    pgEl.innerHTML = html;
+    document.body.appendChild(pgEl);
+    syncLock();
+    // 旧版“右上角 ✕”改为页面返回箭头
+    pgEl.querySelectorAll('[data-close]').forEach((b) => {
+      if (b.classList.contains('x')) { b.classList.add('pg-back'); b.innerHTML = icon('back'); }
+    });
+    pgEl.addEventListener('click', (e) => {
+      const dc = e.target.closest('[data-close]');
+      if (dc) closeSheet();
+    });
+    return pgEl;
   }
   function closeSheet() {
-    $('overlay').classList.remove('open');
-    $('overlay').hidden = true;
+    if (!pgEl) return;
+    const el = pgEl;
+    pgEl = null;
+    // 退出：页面从左往右滑出，同时底层淡回
+    document.body.classList.remove('pg-on');
+    el.classList.add('pop');
+    el.style.animation = 'pgOut .24s ease forwards';
+    syncLock();
+    setTimeout(() => { el.remove(); }, 260);
+  }
+
+  function openModal(html) {
+    const ov = $('overlay');
+    $('sheet').innerHTML = html;
+    ov.hidden = false;
+    ov.classList.add('open', 'mid');
+    syncLock();
+    return ov;
+  }
+  function closeModal() {
+    const ov = $('overlay');
+    if (!modalOpen()) return;
+    ov.classList.remove('open', 'mid');
+    ov.hidden = true;
     $('sheet').innerHTML = '';
-    document.body.classList.remove('lock');
+    syncLock();
   }
 
   function confirmDlg(title, msg, okText) {
     return new Promise((res) => {
-      const ov = openSheet(
+      const box = openModal(
         '<div class="confirm-box"><h3>' + esc(title) + '</h3><p>' + esc(msg || '') + '</p>' +
         '<div class="btns"><button data-r="0">取消</button><button class="ok" data-r="1">' + esc(okText || '确定') + '</button></div></div>'
-      );
-      const on = (e) => {
-        const v = e.target.getAttribute && e.target.getAttribute('data-r');
-        if (v == null) return;
-        ov.removeEventListener('click', on);
-        closeSheet();
-        res(v === '1');
+      ).querySelector('.confirm-box');
+      const done = (v) => { ovClean(); closeModal(); res(v); };
+      const mask = box.closest('#overlay').querySelector('.overlay-mask');
+      const ovClean = () => {
+        box.removeEventListener('click', onBox);
+        mask.removeEventListener('click', onMask);
       };
-      ov.addEventListener('click', on);
-      // 点遮罩 = 取消
-      ov.querySelector('.overlay-mask').addEventListener('click', () => { closeSheet(); res(false); });
+      const onBox = (e) => {
+        const v = e.target.getAttribute && e.target.getAttribute('data-r');
+        if (v != null) done(v === '1');
+      };
+      const onMask = () => done(false);
+      box.addEventListener('click', onBox);
+      mask.addEventListener('click', onMask);
     });
   }
 
   function promptDlg(title, def, okText) {
     return new Promise((res) => {
-      const ov = openSheet(
+      const box = openModal(
         '<div class="confirm-box"><h3>' + esc(title) + '</h3>' +
         '<div style="margin:4px 0 14px"><input id="pmtInp" type="text" style="width:100%;border:0;outline:none;background:var(--card2);border-radius:10px;padding:10px;font-size:15px" value="' + esc(def || '') + '"/></div>' +
         '<div class="btns"><button data-r="0">取消</button><button class="ok" data-r="1" style="background:var(--accent)">' + esc(okText || '确定') + '</button></div></div>'
-      );
-      const inp = ov.querySelector('#pmtInp');
-      setTimeout(() => { inp.focus(); inp.select(); }, 60);
-      const fin = (v) => { closeSheet(); res(v ? (inp.value || '').trim() : null); };
-      const onKey = (e) => { if (e.key === 'Enter') { ov.removeEventListener('keydown', onKey); fin(true); } };
-      ov.addEventListener('keydown', onKey);
-      ov.addEventListener('click', (e) => {
+      ).querySelector('.confirm-box');
+      const inp = box.querySelector('#pmtInp');
+      const done = (v) => { ovClean(); closeModal(); res(v ? (inp.value || '').trim() : null); };
+      const ovClean = () => {
+        box.removeEventListener('click', onBox);
+        box.removeEventListener('keydown', onKey);
+        mask.removeEventListener('click', onMask);
+      };
+      const mask = box.closest('#overlay').querySelector('.overlay-mask');
+      const onBox = (e) => {
         const v = e.target.getAttribute && e.target.getAttribute('data-r');
-        if (v == null) return;
-        ov.removeEventListener('keydown', onKey);
-        fin(v === '1');
-      });
+        if (v != null) done(v === '1');
+      };
+      const onKey = (e) => { if (e.key === 'Enter') done(true); };
+      const onMask = () => done(false);
+      box.addEventListener('click', onBox);
+      box.addEventListener('keydown', onKey);
+      mask.addEventListener('click', onMask);
+      setTimeout(() => { inp.focus(); inp.select(); }, 60);
     });
   }
 
@@ -316,7 +369,7 @@
       d.onclick = () => { closeSheet(); fn(); };
       return d;
     };
-    const sheetEl = openSheet('<div class="grip"></div><div class="sh"><div class="t">' + esc(ev.title) + '</div><button class="x" data-close="1">' + icon('close') + '</button></div><div class="slist" id="menuList"></div>');
+    const sheetEl = openSheet('<div class="sh"><div class="t">' + esc(ev.title) + '</div><button class="x" data-close="1">' + icon('close') + '</button></div><div class="slist" id="menuList"></div>');
     const box = sheetEl.querySelector('#menuList');
     box.appendChild(row('✏️', '编辑', () => openEditor(ev.id)));
     box.appendChild(row(ev.pinned ? '📌' : '📍', ev.pinned ? '取消置顶' : '置顶', () => { ev.pinned = !ev.pinned; S().updateEvent(ev); renderAll(); toast(ev.pinned ? '已置顶' : '已取消置顶'); }));
@@ -438,7 +491,8 @@
     }
 
     // 名称行焦点
-    setTimeout(() => F('edTitle').focus(), 120);
+    // 转场结束再聚焦输入框，避免滑入瞬间弹键盘/闪白
+    setTimeout(() => { const ti = F('edTitle'); if (ti && !document.hidden) ti.focus(); }, 340);
 
     // 滚轮数据（目标日：公历/农历三列滚轮，样式仿 Days Matter）
     const lu = window.DM.lunar;
@@ -857,10 +911,9 @@
    * ========================================================= */
   function openMoreMenu() {
     const sheetEl = openSheet(
-      '<div class="grip"></div><div class="sh"><div class="t">更多</div><button class="x" data-close="1">' + icon('close') + '</button></div>' +
+      '<div class="sh"><div class="t">更多</div><button class="x" data-close="1">' + icon('close') + '</button></div>' +
       '<div class="slist" id="menuList">' +
       si('🗂', '分类管理', 'openCat') +
-      si('🔔', '通知与提醒', 'notify') +
       si('🎨', '外观与主题', 'theme') +
       si('💾', '备份与恢复', 'backup') +
       si('ℹ️', '关于本应用', 'about') +
@@ -870,7 +923,7 @@
       const b = e.target.closest('.si'); if (!b) return;
       const act = b.dataset.act;
       if (act === 'openCat') { closeSheet(); openCatManage(false); }
-      else if (act === 'notify') { closeSheet(); openNotify(); }
+      else if (act === 'theme') { closeSheet(); openTheme(); }
       else if (act === 'theme') { closeSheet(); openTheme(); }
       else if (act === 'backup') { closeSheet(); openBackup(); }
       else if (act === 'about') { closeSheet(); openAbout(); }
@@ -883,7 +936,7 @@
   function openNotify() {
     const perm = N().permission();
     const sheetEl = openSheet(
-      '<div class="grip"></div><div class="sh"><div class="t">通知与提醒</div><button class="x" data-close="1">' + icon('close') + '</button></div>' +
+      '<div class="sh"><div class="t">通知与提醒</div><button class="x" data-close="1">' + icon('close') + '</button></div>' +
       '<div class="slist" id="menuList">' +
       si('🔔', '开启通知权限', 'req', perm === 'granted' ? '已允许' : perm === 'denied' ? '已拒绝' : '未开启') +
       si('📣', '发送一条测试通知', 'test') +
@@ -908,12 +961,12 @@
   function openTheme() {
     const pref = S().getPrefs().theme || 'auto';
     const sheetEl = openSheet(
-      '<div class="grip"></div><div class="sh"><div class="t">外观与主题</div><button class="x" data-close="1">' + icon('close') + '</button></div>' +
+      '<div class="sh"><div class="t">外观与主题</div><button class="x" data-close="1">' + icon('close') + '</button></div>' +
       '<div class="stack"><div class="seg" id="themeSeg">' +
       '<button class="' + (pref === 'light' ? 'on' : '') + '" data-t="light">浅色</button>' +
       '<button class="' + (pref === 'dark' ? 'on' : '') + '" data-t="dark">深色</button>' +
       '<button class="' + (pref === 'auto' ? 'on' : '') + '" data-t="auto">跟随系统</button>' +
-      '</div></div><div class="stack" style="padding-top:0"><p class="hint">底部“添加主屏幕”（iOS Safari）后可作为 App 图标打开，界面与此一致。</p></div>'
+      '</div></div>'
     );
     const seg = sheetEl.querySelector('#themeSeg');
     seg.addEventListener('click', (e) => {
@@ -932,13 +985,11 @@
 
   function openBackup() {
     const sheetEl = openSheet(
-      '<div class="grip"></div><div class="sh"><div class="t">备份与恢复</div><button class="x" data-close="1">' + icon('close') + '</button></div>' +
+      '<div class="sh"><div class="t">备份与恢复</div><button class="x" data-close="1">' + icon('close') + '</button></div>' +
       '<div class="slist" id="menuList">' +
       si('⬇️', '导出备份（JSON 文件）', 'exp', '含背景图片') +
       si('⬆️', '从备份文件导入', 'imp', '覆盖当前数据') +
-      si('🧹', '清空全部数据', 'clear', '危险') +
-      '</div>' +
-      '<div class="sec">提示</div><div class="stack" style="padding-top:0"><p class="hint">数据默认保存在本浏览器内。网页版无法使用 iCloud；建议定期导出备份，并可把 JSON 文件放入云盘/网盘。将来套壳成 iOS App 后可再接入 iCloud。</p></div>'
+      '</div>'
     );
     sheetEl.querySelector('#menuList').addEventListener('click', (e) => {
       const b = e.target.closest('.si'); if (!b) return;
@@ -968,28 +1019,16 @@
           fi.value = '';
         };
         fi.click();
-      } else if (b.dataset.act === 'clear') {
-        (async () => {
-          const ok = await confirmDlg('清空数据', '将删除全部事件与分类设置（背景图片一并清除），且不可撤销。建议先导出备份。', '清空');
-          if (ok) {
-            const st = S().load();
-            for (const e of st.events) S().dropPhotoBlob('p_' + e.id);
-            localStorage.removeItem('daoshuri_state_v1');
-            S().load();
-            closeSheet(); renderAll();
-            toast('已清空数据');
-          }
-        })();
       }
     });
   }
 
   function openAbout() {
     openSheet(
-      '<div class="grip"></div><div class="sh"><div class="t">关于</div><button class="x" data-close="1">' + icon('close') + '</button></div>' +
-      '<div class="about-logo"><span class="brand-logo" style="width:64px;height:64px;border-radius:18px">' + icon('cal') + '</span></div>' +
-      '<div class="stack" style="align-items:center;gap:2px"><b style="font-size:18px">倒数日 · 网页版</b><span style="color:var(--text3);font-size:12px">v1.0.0（仿 Days Matter 体验的独立实现）</span></div>' +
-      '<div class="sec">说明</div><div class="stack" style="padding-top:0"><p class="hint">这是一个纯本地运行的倒计时与纪念日工具，所有数据保存在你的浏览器中。农历数据基于 MIT 许可的 Lunar-Solar-Calendar-Converter 项目，支持 1888–2110 年。请勿用于商业用途分发或冒充原版应用。</p></div>'
+      '<div class="sh"><div class="t">关于</div><button class="x" data-close="1">' + icon('close') + '</button></div>' +
+      '<div class="about-logo"><span class="brand-logo about-app"><img class="brand-img" src="icons/app.png" alt="应用图标" /></span></div>' +
+      '<div class="stack" style="align-items:center;gap:4px;padding-bottom:22px"><b style="font-size:20px">时光屿月</b><span style="color:var(--text2);font-size:13px">v1.0.0</span>' +
+      '<a class="about-author" href="https://qm.qq.com/q/f7pTz8BdSw" target="_blank" rel="noopener">作者：Felix.</a></div>'
     );
   }
 
@@ -1375,6 +1414,15 @@
   }
 
   function wireDayPanel(d) {
+    // 记录心情/症状/颜色等横滑行的位置，避免选择后跳回最左
+    const scrolls = [];
+    try { document.querySelectorAll('.pday-scroll').forEach((el) => scrolls.push(el.scrollLeft)); } catch (e) { /* 忽略 */ }
+    const restore = () => {
+      try {
+        let i = 0;
+        document.querySelectorAll('.pday-scroll').forEach((el) => { if (scrolls[i] != null) el.scrollLeft = scrolls[i]; i++; });
+      } catch (e) { /* 忽略 */ }
+    };
     const sel = new Date(ui.pday);
     const ds = C().ymd(sel);
     let mark = markObj(S().getMarks()[ds]);
@@ -1418,6 +1466,7 @@
     const nm = markObj(S().getMarks()[ds]);
     if (!nm.f && !nm.p && !nm.mood && !nm.c && !nm.s.length) S().delMark(ds);
     renderPeriodPage();
+    restore();
   }
 
   function openCycleSheet() {
@@ -1495,14 +1544,35 @@
     }
   }
 
+  /* 底部页签切换时的内容过渡动画（向左/向右轻推进入） */
+  function animateTabSwitch(from, to) {
+    const ORDER = ['home', 'list', 'cal', 'set'];
+    const a = ORDER.indexOf(from), b = ORDER.indexOf(to);
+    let dir = 1; // 默认从右进入（顺着底栏顺序）
+    if (a >= 0 && b >= 0) dir = ((b - a + ORDER.length) % ORDER.length) <= 2 ? 1 : -1;
+    const hp = $('headPanel');
+    const targets = [$('content')];
+    if (hp && hp.style.display !== 'none') targets.push(hp);
+    targets.forEach((n) => {
+      if (!n) return;
+      n.classList.remove('pgTabR', 'pgTabL');
+      void n.offsetWidth;
+      n.classList.add(dir > 0 ? 'pgTabR' : 'pgTabL');
+      setTimeout(() => n.classList.remove('pgTabR', 'pgTabL'), 300);
+    });
+  }
+
   function setTab(tab) {
     if (!['home', 'list', 'cal', 'set'].includes(tab)) tab = 'list';
+    const prev = ui.tab || 'list';
+    if (prev === tab) { renderAll(); return; }
     ui.tab = tab;
     ui.q = ''; const sb = $('searchbar'), si = $('searchInput');
     if (sb) sb.hidden = true;
     if (si) si.value = '';
     S().setPrefs({ tab });
     renderAll();
+    animateTabSwitch(prev, tab);
   }
 
   function renderPlaceholder(emoji, title, sub) {
@@ -1525,7 +1595,7 @@
       '有空点开月历认认经期/易孕/排卵的颜色图例。',
       '完成设置后，首页这张卡片会自动更新成你的阶段状态。',
       '不必天天记录，开始和结束两天记清楚就很关键。',
-      '想开启提醒通知，可在“设置 - 通知与提醒”里打开。'
+      '打开月历认认经期/易孕/排卵的图例，开始记录预测会更准。'
     ],
     period: [
       '经期注意保暖，腹部热敷能缓解不适。',
@@ -1691,20 +1761,18 @@
     const c = $('content');
     if (!c) return;
     const rows = [
-      ['🔔', '通知与提醒', 'notify'],
       ['🎨', '外观与主题', 'theme'],
       ['💾', '备份与恢复', 'backup'],
       ['ℹ️', '关于本应用', 'about']
     ];
     let h = '<div class="page"><div class="ed-group page-list">';
     for (const r of rows) h += '<div class="set-row" data-act="' + r[2] + '"><span class="ic">' + r[0] + '</span><span class="cn">' + r[1] + '</span><span class="chev">›</span></div>';
-    h += '</div><p class="page-hint">数据保存在本浏览器内，不上传服务器；换设备请用“备份与恢复 → 导出备份”。</p></div>';
+    h += '</div></div>';
     c.innerHTML = h;
     c.querySelectorAll('.set-row').forEach((b) => {
       b.onclick = () => {
         const a = b.dataset.act;
-        if (a === 'notify') openNotify();
-        else if (a === 'theme') openTheme();
+        if (a === 'theme') openTheme();
         else if (a === 'backup') openBackup();
         else if (a === 'about') openAbout();
       };
@@ -1717,13 +1785,30 @@
   }
 
   const pad2n = (n) => String(n).padStart(2, '0');
+  const WEEK_CN2 = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+  // 北京/服务器时间同步：以 Date 响应头为准，纠正本机时钟偏差
+  function netNow() { return new Date(Date.now() + (ui.netOffset || 0)); }
+  function syncNetTime() {
+    if (!window.fetch || typeof location === 'undefined' || !location.href || location.protocol === 'file:') return;
+    const t0 = Date.now();
+    fetch(location.href.split('#')[0], { method: 'HEAD', cache: 'no-store' })
+      .then((r) => {
+        const srv = r.headers.get('Date');
+        if (!srv) return;
+        const st = Date.parse(srv);
+        if (isNaN(st)) return;
+        const t1 = Date.now();
+        const off = st - Math.round((t0 + t1) / 2);
+        if (Math.abs(off) < 86400000) ui.netOffset = off; // 忽略异常头
+        updateBrandDateText();
+      }).catch(() => { /* 离线/file 下用本机时间 */ });
+  }
   function updateBrandDateText() {
     const bd = $('brandDate');
     if (!bd) return;
     if (ui.tab !== 'home') { bd.textContent = ''; return; }
-    const t = new Date();
-    const info = C().todayLine();
-    bd.textContent = t.getFullYear() + '年' + (t.getMonth() + 1) + '月' + t.getDate() + '日 ' + info.week + ' ' + pad2n(t.getHours()) + ':' + pad2n(t.getMinutes()) + ':' + pad2n(t.getSeconds());
+    const t = netNow();
+    bd.textContent = t.getFullYear() + '年' + (t.getMonth() + 1) + '月' + t.getDate() + '日 ' + WEEK_CN2[t.getDay()] + ' ' + pad2n(t.getHours()) + ':' + pad2n(t.getMinutes()) + ':' + pad2n(t.getSeconds());
   }
 
   function syncReminders() {
@@ -1761,7 +1846,7 @@
       if (!sb.hidden) $('searchInput').focus();
       else { ui.q = ''; $('searchInput').value = ''; renderAll(); }
     };
-    $('searchClear').onclick = () => { ui.q = ''; $('searchInput').value = ''; renderList(); $('searchInput').focus(); };
+    $('searchClear').onclick = () => { ui.q = ''; const sb = $('searchbar'); if (sb) sb.hidden = true; const si = $('searchInput'); if (si) si.value = ''; renderList(); };
     $('searchInput').addEventListener('input', (e) => { ui.q = e.target.value.trim(); if (ui.tab === 'list') renderList(); });
 
     // 底栏导航
@@ -1780,11 +1865,16 @@
       if (ui.tab === 'list') renderList();
     });
 
-    // 遮罩关闭
+    // 遮罩关闭：页面与居中模态分开处理
     $('overlay').addEventListener('click', (e) => {
-      if (e.target.classList.contains('overlay-mask') || e.target.dataset.close) closeSheet();
+      const t = e.target;
+      if ((t.classList && t.classList.contains('overlay-mask')) || (t.closest && t.closest('[data-close]'))) closeModal();
     });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (modalOpen()) { const c = $('overlay').querySelector('[data-r="0"]'); if (c) c.click(); else closeModal(); }
+      else closeSheet();
+    });
 
     // 列表点击
     $('content').addEventListener('click', (e) => {
@@ -1826,11 +1916,26 @@
     ui.lastDayStr = C().ymd(new Date());
     // 顶栏实时时钟（首页显示秒）
     setInterval(updateBrandDateText, 1000);
+    syncNetTime();
+    setInterval(syncNetTime, 10 * 60000);
     // 清除周期数据后整页重载，加载完成提示一次
     try {
       if (sessionStorage.getItem('dm_cycle_cleared') === '1') {
         sessionStorage.removeItem('dm_cycle_cleared');
         setTimeout(() => toast('周期数据已清除 ✓（记录与预测已清空）'), 300);
+      }
+    } catch (e) { /* 忽略 */ }
+    // ?pg=editor|cat|theme|about|cycle|more 自动打开页面（截图/调试用）
+    try {
+      const sp = new URLSearchParams(location.search || '').get('pg');
+      if (sp) {
+        const map = {
+          editor: () => openEditor(null), cat: () => openCatManage(false),
+          theme: () => openTheme(), about: () => openAbout(),
+          cycle: () => openCycleSheet(), more: () => openMoreMenu(),
+          dlg: () => confirmDlg('删除事件', '确定删除「测试日子」吗？', '删除')
+        };
+        if (map[sp]) map[sp]();
       }
     } catch (e) { /* 忽略 */ }
   }
