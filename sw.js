@@ -1,7 +1,7 @@
-/* 倒数日 · Service Worker：离线缓存 + 简单的本地提醒调度 */
+/* PWA: offline cache + local reminder scheduler */
 'use strict';
 
-const VERSION = 'daoshuri-v2.39.0';
+const VERSION = 'daoshuri-v2.53.0';
 const SHELL = [
   './',
   './index.html',
@@ -79,8 +79,7 @@ function scheduleFromCache() {
     const due = list.filter((i) => i.dueAt && i.dueAt <= now);
     due.forEach(fireOne);
     if (!future.length) return;
-    // 浏览器可能随时回收 SW，因此这里只保证“在运行期间”尽量按时提醒，最多预排 3 天
-    const next = future[0];
+    // SW may be killed at any time; reminders are best-effort while running (pre-warm up to 3 min).
     const wait = Math.min(next.dueAt - now, 3 * 86400000);
     timer = setTimeout(() => { fireOne(next); scheduleFromCache(); }, wait);
   }).catch(() => {});
