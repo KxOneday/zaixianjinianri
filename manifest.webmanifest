@@ -1,0 +1,17 @@
+{
+  "name": "倒数日 · 倒计时与纪念日",
+  "short_name": "倒数日",
+  "description": "仿《倒数日 Days Matter》的网页版：事件倒计时、纪念日、农历、背景卡片、提醒与备份",
+  "lang": "zh-CN",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f2f3f7",
+  "theme_color": "#ff5e62",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
