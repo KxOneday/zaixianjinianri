@@ -1,0 +1,8 @@
+{
+  "appId": "com.example.daoshuri",
+  "appName": "倒数日",
+  "webDir": ".",
+  "backgroundColor": "#ff5e62",
+  "ios": { "contentInset": "never" },
+  "server": { "androidScheme": "https" }
+}
