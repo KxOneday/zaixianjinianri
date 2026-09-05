@@ -1,7 +1,7 @@
 /* PWA: offline cache + local reminder scheduler */
 'use strict';
 
-const VERSION = 'daoshuri-v2.53.0';
+const VERSION = 'daoshuri-v2.54.0';
 const SHELL = [
   './',
   './index.html',
