@@ -8,8 +8,16 @@
     store.load();
 
     if ('serviceWorker' in navigator) {
-      // 带随机参数注册：每次访问都检查最新版 SW，防止旧代码缓存残留
-      navigator.serviceWorker.register('./sw.js?r=' + Date.now()).catch(() => {});
+      // 新版 SW 接管后自动刷新一次（每个会话最多一次，防止随机参数注册造成循环刷新）
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        try {
+          if (sessionStorage.getItem('dm_sw_reloaded') === '1') return;
+          sessionStorage.setItem('dm_sw_reloaded', '1');
+        } catch (e) { /* 忽略 */ }
+        location.reload();
+      });
+      // 固定 URL 注册；sw.js 由服务器以 no-store 提供，每次访问都会做字节级更新检查
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
     }
 
     window.DM.ui.init();
